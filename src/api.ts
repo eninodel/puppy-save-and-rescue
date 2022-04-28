@@ -21,6 +21,8 @@ async function init() {
 
     db.run("CREATE TABLE owners_pets (pet_id int, owner_id int);");
     db.run("INSERT INTO owners_pets VALUES (1, 3);");
+    // db.run("INSERT INTO owners_pets VALUES (2, 3);");
+    // db.run("INSERT INTO owners_pets VALUES (3, 2);");
 
     return db;
 }
@@ -79,11 +81,15 @@ export const getPetById = ((async (event) => {
     // Initialize the DB
     let db = await init();
 
+    let petId: Number = 0;
+    if (event.pathParameters == undefined) return {statusCode: 400, body: "no id"}
+    petId = Number(event.pathParameters.id);
+
     // Prepare an sql statement
     const stmt = db.prepare("SELECT * FROM pets WHERE id=:id ");
 
     // Bind values to the parameters and fetch the results of the query
-    const result = stmt.getAsObject({':id' : 1});
+    const result = stmt.getAsObject({':id' : petId});
 
     return { statusCode: 200, body: JSON.stringify(result) }
 }))
@@ -106,11 +112,9 @@ export const getOwnerById = ((async (event) => {
     const ownerDetailsQuery = db.prepare("SELECT * FROM owners WHERE id=:id ");
     let ownerDetails = ownerDetailsQuery.getAsObject({':id' : ownerId});
     ownerDetailsQuery.free();
-
     // Get all the pets for this owner
     const ownerPetsQuery = db.prepare("SELECT pets.* FROM pets inner join owners_pets ON owners_pets.pet_id = pets.id where owners_pets.owner_id = :ownerid;");
     const result = ownerPetsQuery.bind({':ownerid' : ownerId});
-
     ownerDetails.pets = [];
     while(ownerPetsQuery.step()) {
         const row = ownerPetsQuery.getAsObject();
@@ -131,8 +135,12 @@ export const getLostPets = ((async (event) => {
     // Initialize the DB
     let db = await init();
 
-    // TODO: Finish implementation here
+    const result = db.exec("SELECT pets.id, pets.name FROM pets LEFT JOIN owners_pets ON pets.id = owners_pets.pet_id WHERE owners_pets.owner_id IS NULL");
 
-    return { statusCode: 200 }
+    if (result.length == 0) return { statusCode: 200, body: JSON.stringify([]) }
+
+    const prettyResults = serialize(result);
+
+    return { statusCode: 200, body: JSON.stringify(prettyResults) }
 }))
 
